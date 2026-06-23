@@ -172,7 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     name: x.nama,
                     description: x.deskripsi || "Menu spesial kami.",
                     price: x.harga,
-                    image: x.gambar || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=500",
+                    image: x.gambar || null,
                     recommended: false,
                     variasi: x.variasi || []
                 }))
@@ -211,6 +211,34 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     allItems = data.items || [];
     renderItems();
+
+    // Auto-fill table number from URL query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const mejaParam = urlParams.get('meja') || urlParams.get('table');
+    if (mejaParam) {
+        const orderTableEl = document.getElementById('order-table');
+        if (orderTableEl) {
+            orderTableEl.value = decodeURIComponent(mejaParam);
+            orderTableEl.readOnly = true;
+            orderTableEl.style.background = '#F1F5F9';
+            orderTableEl.style.color = '#475569';
+            orderTableEl.style.cursor = 'not-allowed';
+            orderTableEl.style.fontWeight = 'bold';
+            
+            // Auto select "Makan di Tempat" (Dine In) type if table is specified
+            const dineInRadio = document.querySelector('input[name="order-type"][value="Dine In"]');
+            if (dineInRadio) {
+                dineInRadio.checked = true;
+                // Wait for order type toggle function to be set up or trigger it manually
+                setTimeout(() => {
+                    if (typeof window.toggleOrderType === 'function') {
+                        window.toggleOrderType();
+                    }
+                }, 200);
+            }
+        }
+    }
+
 
     // ── Filter ──
     function setFilter(f) {
@@ -251,9 +279,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 qtyHtml = `<button class="btn-add" onclick="addToCart(${item.id})">+ Tambah</button>`;
             }
 
+            // Tampilkan gambar asli jika ada, atau placeholder huruf jika tidak ada foto
+            const imgHtml = item.image
+                ? `<img src="${item.image}" class="menu-img" alt="${item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <div class="menu-img-placeholder" style="display:none;">${item.name.charAt(0).toUpperCase()}</div>`
+                : `<div class="menu-img-placeholder">${item.name.charAt(0).toUpperCase()}</div>`;
+
             card.innerHTML = `
-                <img src="${item.image}" class="menu-img" alt="${item.name}"
-                     onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=500'">
+                ${imgHtml}
                 <div class="menu-info">
                     <div class="menu-info-top">
                         <h3 class="menu-name">${item.name}</h3>
@@ -375,9 +408,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         cart.forEach(entry => {
             const d = document.createElement("div");
             d.className = "cart-item";
+            const cartImgHtml = entry.item.image
+                ? `<img src="${entry.item.image}" class="cart-item-img" alt="${entry.item.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <div class="cart-item-img-placeholder" style="display:none;">${entry.item.name.charAt(0).toUpperCase()}</div>`
+                : `<div class="cart-item-img-placeholder">${entry.item.name.charAt(0).toUpperCase()}</div>`;
             d.innerHTML = `
-                <img src="${entry.item.image}" class="cart-item-img" alt="${entry.item.name}"
-                     onerror="this.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=200'">
+                ${cartImgHtml}
                 <div class="cart-item-info">
                     <div class="cart-item-name">${entry.item.name} ${entry.varian ? `<span style="color:var(--primary); font-size:0.8rem;">[${entry.varian}]</span>` : ''}</div>
                     <div class="cart-item-price">${formatRp(entry.item.price)}</div>
@@ -497,8 +533,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // ── Submit Pesanan (bulletproof version) ──
+    let isSubmitting = false; // Lock untuk cegah double-submit
     window.submitOrder = async () => {
         if (cart.length === 0) { showToast('⚠️ Keranjang masih kosong!', 'warning'); return; }
+
+        // ANTI DOUBLE-SUBMIT: Jika sedang proses, abaikan klik berikutnya
+        if (isSubmitting) { showToast('⏳ Pesanan sedang diproses...', 'warning'); return; }
+        isSubmitting = true;
 
         const orderType = document.querySelector('input[name="order-type"]:checked').value;
         const name  = document.getElementById("order-name").value.trim();
@@ -543,7 +584,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const dt = Date.now();
-        const orderId = "ORD-" + dt.toString().slice(-6);
+        const randSuffix = Math.random().toString(36).slice(2, 7).toUpperCase();
+        const orderId = "ORD-" + dt.toString().slice(-6) + "-" + randSuffix;
+        const uniqueId = dt + Math.floor(Math.random() * 100000); // ID unik lebih kuat
 
         try {
             // ── 1. Baca draftList yang ada ──
@@ -576,7 +619,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
 
             const newDraft = {
-                id: dt,
+                id: uniqueId,
                 tag: tagStr,
                 time: new Date().toISOString(),
                 source: 'digital_menu',
@@ -596,7 +639,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                     image:    c.item.image
                 }))
             };
-            draftList.push(newDraft);
+
+            // ── ANTI DUPLIKASI: Cek apakah ID sudah ada sebelum push ──
+            const alreadyExists = draftList.some(d => d.id === uniqueId);
+            if (!alreadyExists) {
+                draftList.push(newDraft);
+            } else {
+                console.warn('[RM] Pesanan duplikat terdeteksi, diabaikan:', uniqueId);
+                showToast('✅ Pesanan sudah dikirim sebelumnya!', 'success');
+                btn.disabled = false;
+                btn.textContent = '🚀 Kirim Pesanan Sekarang';
+                return;
+            }
 
             // ── 3. Simpan ke Firebase atau fallback ──
             let savedOk = false;
@@ -626,7 +680,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             closeCart();
             cart = [];
             renderItems(); updateCartFAB();
-            ['order-name','order-table','order-address','order-note'].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+            ['order-name','order-table','order-address','order-note'].forEach(id => { 
+                const el = document.getElementById(id); 
+                if(el) {
+                    if (id === 'order-table' && el.readOnly) {
+                        return; // Jangan hapus nomor meja jika terkunci dari scan QR
+                    }
+                    el.value = ''; 
+                }
+            });
             
             // Reset order type to Dine In
             document.querySelector('input[name="order-type"][value="Dine In"]').checked = true;
@@ -649,6 +711,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             // Tombol SELALU dikembalikan, tidak peduli apapun yang terjadi
             btn.disabled = false;
             btn.textContent = '🚀 Kirim Pesanan Sekarang';
+            isSubmitting = false; // Release lock
         }
     };
 

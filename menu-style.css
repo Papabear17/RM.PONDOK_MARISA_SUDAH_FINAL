@@ -111,6 +111,17 @@ body {
     width: 90px; height: 90px; border-radius: 14px;
     object-fit: cover; flex-shrink: 0; background: #f1f1f1;
 }
+/* Placeholder huruf jika produk tidak punya foto */
+.menu-img-placeholder {
+    width: 90px; height: 90px; border-radius: 14px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #eef2ff 0%, #c7d2fe 100%);
+    color: var(--primary);
+    font-size: 2rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: -1px; text-transform: uppercase;
+    border: 2px solid rgba(79,70,229,0.1);
+}
 .menu-info { flex: 1; }
 .menu-info-top {
     display: flex; justify-content: space-between;
@@ -229,6 +240,13 @@ body {
     padding: 12px 0; border-bottom: 1px solid #F8F8F8;
 }
 .cart-item-img { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+.cart-item-img-placeholder {
+    width: 52px; height: 52px; border-radius: 12px;
+    flex-shrink: 0; background: linear-gradient(135deg, #eef2ff 0%, #c7d2fe 100%);
+    color: var(--primary); font-size: 1.5rem; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(79,70,229,0.1); text-transform: uppercase;
+}
 .cart-item-info { flex: 1; }
 .cart-item-name { font-weight: 700; font-size: 0.9rem; }
 .cart-item-price { font-size: 0.8rem; color: var(--accent-green); font-weight: 700; }
